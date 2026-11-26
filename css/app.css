@@ -154,6 +154,9 @@ textarea.in { min-height: 60px; resize: vertical; }
 .scanmsg.ok { color: var(--ok); font-weight: 700; }
 .scanmsg.bad { color: var(--warnbox-ink); }
 .scanmsg .mono, .mono { font-family: ui-monospace, Menlo, monospace; }
+.scanmsg .prog { display: inline-block; vertical-align: middle; width: 90px; height: 6px; border-radius: 9px; background: var(--line); overflow: hidden; margin-left: 6px; }
+.scanmsg .prog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.in.auto { background: var(--warnbox-bg); border-color: var(--warnbox-line); }
 .linkbtn { color: var(--accent); font-weight: 800; text-decoration: underline; padding: 0 2px; }
 .formerr { color: var(--urgent); font-size: 13px; font-weight: 700; margin: 10px 0 0; }
 

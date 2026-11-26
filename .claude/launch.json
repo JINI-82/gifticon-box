@@ -6,6 +6,13 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["dev-server.mjs"],
       "port": 5173
+    },
+    {
+      "name": "gifticon-log",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dev-server.mjs"],
+      "env": { "LOG_REQUESTS": "1", "PORT": "5174" },
+      "port": 5174
     }
   ]
 }

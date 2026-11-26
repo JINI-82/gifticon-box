@@ -4,6 +4,8 @@ import { putItem, deleteItem } from './db.js';
 import { shrinkImage, imageURL, forgetImage } from './image.js';
 import { canonicalBrand } from './brands.js';
 import { scanBarcode } from './scan.js';
+import { recognizeText } from './ocr.js';
+import { parseGifticon } from './parse.js';
 
 const digitsOnly = (s) => String(s ?? '').replace(/[^\d]/g, '');
 
@@ -25,6 +27,7 @@ export function openItemForm(item, hooks = {}) {
     <button type="button" class="btn" id="fPhotoBtn">🖼️ ${previewURL ? '사진 바꾸기' : '사진 첨부'}</button>
     <input type="file" id="fPhoto" accept="image/*" class="hidden">
     <div class="scanmsg hidden" id="fScan" role="status"></div>
+    <div class="scanmsg hidden" id="fOcr" role="status"></div>
     <form id="itemForm" novalidate>
       <div class="row2">
         <div><label class="f" for="fBrand">브랜드</label>
@@ -67,8 +70,49 @@ export function openItemForm(item, hooks = {}) {
       el.classList.remove('hidden');
       $('#fPhotoBtn').textContent = '🖼️ 사진 바꾸기';
     });
+    const token = ++photoToken;
     pendingScan = runScan(file); // 축소 전 원본으로 읽어야 잘 읽힌다
+    // 바코드 다음에 글자 인식 (저장은 이걸 기다리지 않는다: 오래 걸릴 수 있어서)
+    pendingScan.then(() => runOcr(file, token));
   };
+
+  // 사진에서 글자 읽어서 빈 칸 채우기
+  let photoToken = 0; // 사진을 또 바꾸면 이전 인식 결과는 버린다
+  async function runOcr(file, token) {
+    const box = $('#fOcr');
+    if (!box) return;
+    const show = (html, cls = '') => { box.className = `scanmsg ${cls}`; box.innerHTML = html; };
+    show('📝 글자 읽는 중… <span class="prog"><i id="fOcrBar"></i></span>');
+    let text;
+    try {
+      text = await recognizeText(file, (msg, ratio) => {
+        const bar = $('#fOcrBar');
+        if (bar && token === photoToken) bar.style.width = `${Math.round(ratio * 100)}%`;
+      });
+    } catch (ex) {
+      console.warn(ex);
+      if (token === photoToken && $('#fOcr')) show(`글자 인식이 안 됐어: ${esc(ex.message || ex)}. 직접 입력해줘.`, 'bad');
+      return;
+    }
+    if (token !== photoToken || !$('#itemForm')) return;
+    const p = parseGifticon(text);
+    const filled = [];
+    const fill = (id, value, label) => {
+      const el = $(id);
+      if (!el || value === null || value === '' || el.value.trim()) return; // 이미 쓴 칸은 건드리지 않는다
+      el.value = value;
+      el.classList.add('auto');
+      filled.push(label);
+    };
+    fill('#fBrand', p.brand, '브랜드');
+    fill('#fName', p.name, '상품명');
+    fill('#fExp', p.expiresAt, '유효기간');
+    fill('#fAmount', p.amount ? String(p.amount) : '', '금액');
+    fill('#fBarcode', p.barcode, '바코드 번호');
+    if (filled.length) show(`📝 글자를 읽어서 <b>${filled.join(', ')}</b>을(를) 채웠어. 노란 칸이 맞는지 꼭 확인해줘.`, 'ok');
+    else show('글자에서 새로 채울 정보를 못 찾았어. 비어 있는 칸은 직접 입력해줘.', 'bad');
+  }
+  form.addEventListener('input', (e) => e.target.classList.remove('auto'));
 
   // 사진에서 바코드 읽어서 칸 채우기
   let scanned = null;      // { text, format }

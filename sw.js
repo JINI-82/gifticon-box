@@ -3,7 +3,7 @@
 // vendor/ (큰 라이브러리·OCR 데이터): 캐시 우선.
 // 같은 출처(origin) 요청만 다루고, 외부 요청은 하지 않는다.
 
-const VERSION = 'v8';
+const VERSION = 'v9';
 const CACHE = `gifticon-${VERSION}`;
 const PRECACHE = [
   './',
@@ -22,6 +22,14 @@ const PRECACHE = [
   './js/ics.js',
   './js/scan.js',
   './vendor/zxing/zxing.min.js',
+  './js/ocr.js',
+  './js/parse.js',
+  './vendor/tesseract/tesseract.min.js',
+  './vendor/tesseract/worker.min.js',
+  './vendor/tesseract/tesseract-core-simd-lstm.js',
+  './vendor/tesseract/tesseract-core-simd-lstm.wasm',
+  './vendor/tesseract/lang/kor.traineddata.gz',
+  './vendor/tesseract/lang/eng.traineddata.gz',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
