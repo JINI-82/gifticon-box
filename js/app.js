@@ -6,6 +6,7 @@ import {
 } from './util.js';
 import { allItems, putItem, deleteItem, getMeta, requestPersist } from './db.js';
 import { buildBackup, saveBackupFile, markBackedUp, readBackup, applyBackup } from './backup.js';
+import { icsFile, openICS } from './ics.js';
 import { forgetImage } from './image.js';
 import { imageURL } from './image.js';
 import { openItemForm } from './form.js';
@@ -99,6 +100,8 @@ function renderHome() {
   }
   const usedCount = usedList().length;
   h += `<a class="linkrow" href="#/used"><span>🧾 사용 내역</span><span class="sub">${usedCount}개 ›</span></a>`;
+  const calCount = calendarTargets().length;
+  if (calCount) h += `<button class="linkrow" data-act="ics-all"><span>📅 캘린더 알림 한꺼번에 추가</span><span class="sub">${calCount}개 ›</span></button>`;
   h += `<a class="linkrow" href="#/backup"><span>💾 백업·복원</span><span class="sub">${backupLabel()} ›</span></a>`;
   if (ITEMS.length && (!lastBackupAt || Date.now() - lastBackupAt > 30 * 86400000)) {
     h += `<p class="note">데이터는 이 폰에만 있어. 가끔 백업 파일을 '파일' 앱에 저장해둬.</p>`;
@@ -192,6 +195,30 @@ function render() {
     : r.name === 'used' ? renderUsed()
       : r.name === 'backup' ? renderBackup()
         : renderHome();
+}
+
+/* ---------- 캘린더 ---------- */
+// 아직 안 쓰고, 만료일이 오늘 이후인 것
+const calendarTargets = () => active().filter((i) => { const n = dday(i.expiresAt); return n !== null && n >= 0; }).sort(byExpiry);
+
+function showCalendarSheet() {
+  const list = calendarTargets();
+  if (!list.length) return;
+  openSheet(`<h2 class="sheet-title">📅 캘린더 알림 추가</h2>
+    <p class="note">아이폰 캘린더에 만료일 일정 ${list.length}개를 넣어. 알림은 만료 ${ALERT_DAYS}일 전 오전 9시, 당일 오전 9시에 와.</p>
+    <div class="list flat cal-list">${list.map((i) => `<div class="kv"><span>${esc([i.brand, i.name].filter(Boolean).join(' '))}</span><b>${fmtDate(i.expiresAt)}</b></div>`).join('')}</div>
+    <div class="warnbox">일정에는 브랜드·상품명·금액·날짜만 들어가. 바코드 번호와 사진은 안 들어가. 아이폰 캘린더가 iCloud와 동기화돼 있으면 이 일정도 iCloud에 올라가.</div>
+    <p class="note">이미 추가한 기프티콘을 다시 넣으면 캘린더에 따라 중복으로 생길 수 있어.</p>
+    <div class="btns">
+      <button class="btn" id="calNo">취소</button>
+      <button class="btn primary" id="calOk">캘린더에 추가</button>
+    </div>`);
+  $('#calNo').onclick = closeSheet;
+  $('#calOk').onclick = () => {
+    openICS(icsFile(list, `기프티콘-만료알림-${todayStr()}.ics`));
+    closeSheet();
+    toast('캘린더 화면에서 추가를 눌러줘');
+  };
 }
 
 /* ---------- 백업 ---------- */
@@ -325,6 +352,7 @@ document.addEventListener('click', (e) => {
     if (a === 'backup-make') makeBackup(act);
     else if (a === 'backup-save') saveBackup();
     else if (a === 'backup-import') $('#importFile').click();
+    else if (a === 'ics-all') showCalendarSheet();
     return;
   }
   const t = e.target.closest('[data-open]');

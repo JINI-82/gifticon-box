@@ -89,6 +89,10 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .btn.danger { color: var(--urgent); }
 .btn.danger-fill { background: var(--urgent); color: #fff; box-shadow: none; }
 .btn:disabled { opacity: .5; }
+.btn.cal { margin-bottom: 10px; }
+button.linkrow { width: 100%; text-align: left; }
+.cal-list { background: var(--card); border-radius: 14px; padding: 2px 14px; margin: 8px 0; max-height: 220px; overflow: auto; }
+.cal-list .kv span { color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
 
 /* 요약 */
