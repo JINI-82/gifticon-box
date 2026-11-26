@@ -3,7 +3,7 @@
 // vendor/ (큰 라이브러리·OCR 데이터): 캐시 우선.
 // 같은 출처(origin) 요청만 다루고, 외부 요청은 하지 않는다.
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `gifticon-${VERSION}`;
 const PRECACHE = [
   './',
@@ -15,6 +15,7 @@ const PRECACHE = [
   './js/util.js',
   './js/image.js',
   './js/form.js',
+  './js/brands.js',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',

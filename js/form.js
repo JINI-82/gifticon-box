@@ -2,6 +2,7 @@
 import { $, esc, uid, openSheet, closeSheet, confirmSheet, toast } from './util.js';
 import { putItem, deleteItem } from './db.js';
 import { shrinkImage, imageURL, forgetImage } from './image.js';
+import { canonicalBrand } from './brands.js';
 
 const digitsOnly = (s) => String(s ?? '').replace(/[^\d]/g, '');
 
@@ -71,7 +72,7 @@ export function openItemForm(item, hooks = {}) {
   form.onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
-    const brand = String(fd.get('brand')).trim();
+    const brand = canonicalBrand(fd.get('brand')); // '씨유', 'gs 25' → 'CU', 'GS25'
     const name = String(fd.get('name')).trim();
     const err = $('#fErr');
     if (!brand && !name) {

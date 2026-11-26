@@ -107,6 +107,24 @@ header.top { display: flex; align-items: center; justify-content: space-between;
 .item .nm { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item .sub { color: var(--sub); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+.list.flat { box-shadow: none; }
+
+/* 만료 경고 */
+.alert { border-radius: var(--radius); padding: 14px 16px; margin: 8px 0 12px; background: var(--alert-bg); border: 1px solid var(--alert-line); }
+.alert h3 { margin: 0 0 8px; font-size: 15px; color: var(--urgent); }
+.alert .list { background: transparent; }
+.alert .item { border-top: 1px dashed var(--alert-line); padding: 10px 0; }
+.alert .item:first-child { border-top: 0; }
+
+/* 폴더 */
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.folder { background: var(--card); border-radius: var(--radius); padding: 14px 14px 14px 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; min-height: 118px; position: relative; overflow: hidden; color: inherit; text-decoration: none; }
+.folder .emo { font-size: 26px; }
+.folder .nm { font-weight: 800; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.folder .meta { color: var(--sub); font-size: 12.5px; }
+.folder .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; }
+.back { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 18px; padding: 18px 0 4px; color: inherit; text-decoration: none; }
+
 /* 하단 시트 */
 .dim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 40; display: none; }
 .dim.on { display: block; }
