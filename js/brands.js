@@ -87,7 +87,7 @@ for (const [name, , aliases] of BRANDS) {
 }
 // 긴 별칭부터 (본문 검색용: '이마트24'가 '이마트'보다 먼저 잡히게)
 const ALIASES = BRANDS
-  .flatMap(([name, , aliases]) => aliases.map((a) => ({ a: norm(a), name })))
+  .flatMap(([name, , aliases]) => aliases.map((a) => ({ a: norm(a), name, raw: a })))
   .sort((x, y) => y.a.length - x.a.length);
 
 // 입력한 브랜드를 정식 이름으로 (모르는 브랜드면 입력 그대로)
@@ -97,9 +97,20 @@ export function canonicalBrand(input) {
 }
 
 // 긴 텍스트(OCR 결과 등)에서 브랜드 찾기
+// 3글자 이하 짧은 별칭('CU', 'BHC', '7-11')은 앞뒤가 끊긴 단어일 때만 인정한다
+// ('CUP'의 CU, '2027.11.30'의 711 같은 오인식 방지)
 export function findBrandIn(text) {
   const n = norm(text);
-  for (const { a, name } of ALIASES) if (a && n.includes(a)) return name;
+  const upper = String(text || '').toUpperCase();
+  for (const { a, name, raw } of ALIASES) {
+    if (!a) continue;
+    if (a.length <= 3) {
+      const re = new RegExp(`(^|[^A-Z0-9가-힣])${raw.toUpperCase().replace(/[-.]/g, '\\$&')}(?=$|[^A-Z0-9가-힣])`);
+      if (re.test(upper)) return name;
+    } else if (n.includes(a)) {
+      return name;
+    }
+  }
   return '';
 }
 

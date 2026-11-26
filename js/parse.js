@@ -85,7 +85,11 @@ export function findBrand(lines, raw) {
   return (exchange && findBrandIn(exchange)) || findBrandIn(raw) || '';
 }
 
-const NOT_NAME = /유효|기간|기한|교환처|주문|번호|사용|문의|선물|보낸|받는|만료|바코드|고객|발행|일시|쿠폰|금액|잔액|까지|매장|^[\d\s\-.:~,원]+$/;
+// 상품명이 아닌 줄. ('금액권 5천원'처럼 상품명에 '금액'이 들어갈 수 있어서 '금액 4,700원' 같은 항목 줄만 뺀다)
+const NOT_NAME = /유효|기간|기한|교환처|사용처|주문|번호|사용|문의|선물|보낸|받는|만료|바코드|고객|발행|일시|쿠폰|까지|매장|님(\s|$)|^(금액|잔액|가격|결제)\s*[:：]?\s*[\d,.]+\s*원?$|^[\d\s\-.:~,원]+$/;
+
+// 판매 상품 이름에 자주 나오는 말 (점수 가산)
+const PRODUCT_WORDS = /권|상품권|금액권|교환권|이용권|세트|라떼|아메리카노|커피|음료|케이크|버거|치킨|피자|도넛|아이스|컵|우유|\d+\s*(ml|g|kg|개|개월|일|매|인)|천\s*원|만\s*원|\b[TGVL]$/i;
 
 // 화면 캡처에 섞이는 잡음: 상태 표시줄, 주소창, 앱 버튼·탭 이름
 const SCREEN_NOISE = new RegExp([
@@ -93,6 +97,8 @@ const SCREEN_NOISE = new RegExp([
   '\\.(com|co\\.kr|net|kr)\\b', 'www', 'https?',
   '모바일\\s*쿠폰', '상품\\s*정보', '유의\\s*사항', '확대', '선물함', '복사', '공유', '저장', '다운로드',
   '기프티쇼', 'giftishow', '카카오', 'kakao', '기프티콘', '내\\s*마음', '이용\\s*안내', '은행',
+  '선물\\s*하기', '나에게', '추가\\s*결제', '친구에게', '크게\\s*보기', '\\bpay\\b',
+  '쇼핑', '축제', '이벤트', '광고', '할인', '혜택', '놓칠', '받기', '보내기', '\\d+\\s*%',
 ].join('|'), 'i');
 
 const isDateLine = (l) => EXPIRY_WORDS.test(l) || /20\d{2}\s*[.\-/년]/.test(l);
@@ -113,12 +119,14 @@ export function findName(lines, brand) {
     if (isBrandLine(l)) return; // 브랜드 이름만 있는 줄('지에스25', 'CU')
     const hangul = (l.match(/[가-힣]/g) || []).length;
     const latin = (l.match(/[A-Za-z]/g) || []).length;
+    if (hangul + latin < 3) return;                             // 'op. 님' 같은 부스러기
     const odd = (l.match(/[^가-힣A-Za-z0-9\s()\-+&.,/%]/g) || []).length;
-    let score = hangul * 2 + Math.min(latin, 6) - odd * 3;
+    let score = Math.min(hangul, 15) * 2 + Math.min(latin, 6) - odd * 3;
     if (!hangul) score -= 8;                                    // 상품명은 대개 한글
     if (isBrandLine(lines[i - 1])) score += 15;                 // 브랜드 바로 다음 줄
     if (isDateLine(lines[i + 1] || '') || isDateLine(lines[i + 2] || '')) score += 8; // 유효기간 바로 위
     if (/[가-힣]\)/.test(l)) score += 3;                        // '농심)육개장' 같은 제조사 표기
+    if (PRODUCT_WORDS.test(l)) score += 6;                      // 권·라떼·개월 같은 상품 단어
     if (score > 0 && (!best || score > best.score)) best = { name: l, score };
   });
   if (!best) return '';
@@ -126,7 +134,8 @@ export function findName(lines, brand) {
   let name = best.name;
   if (brand && norm(name).startsWith(b) && name.length > brand.length) {
     const rest = name.replace(new RegExp(`^${brand.split('').join('\\s*')}\\s*`, 'i'), '').trim();
-    if (rest.length >= 2) name = rest;
+    // 'CU 3,000원권'처럼 남는 게 숫자로 시작하면 브랜드를 그대로 둔다
+    if (rest.length >= 2 && !/^\d/.test(rest)) name = rest;
   }
   return name;
 }

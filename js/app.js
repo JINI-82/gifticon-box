@@ -2,7 +2,7 @@
 // 모든 데이터는 이 기기(IndexedDB)에만 저장한다. 외부 서버로 보내지 않는다.
 import {
   $, esc, won, fmtDate, dday, ddayChip, byExpiry, openSheet, closeSheet, toast, todayStr,
-  ALERT_DAYS, KEEP_USED_DAYS, daysUntilPurge, shouldPurge,
+  ALERT_DAYS, KEEP_USED_DAYS, daysUntilPurge, shouldPurge, APP_VERSION,
 } from './util.js';
 import { allItems, putItem, deleteItem, getMeta, requestPersist } from './db.js';
 import { buildBackup, saveBackupFile, markBackedUp, readBackup, applyBackup } from './backup.js';
@@ -107,6 +107,7 @@ function renderHome() {
     h += `<p class="note">데이터는 이 폰에만 있어. 가끔 백업 파일을 '파일' 앱에 저장해둬.</p>`;
   }
   h += `<div class="privacy">🔒 <span>사진과 바코드는 이 기기 안에서만 처리·저장돼. 어떤 서버로도 보내지 않아.</span></div>`;
+  h += `<p class="note center">앱 버전 ${APP_VERSION}</p>`;
   return h;
 }
 
@@ -172,6 +173,7 @@ function renderBackup() {
       <div class="kv"><span>보유</span><b>${active().length}개</b></div>
       <div class="kv"><span>사용 내역</span><b>${used}개</b></div>
       <div class="kv"><span>마지막 백업</span><b>${lastBackupAt ? new Date(lastBackupAt).toLocaleString('ko-KR') : '없음'}</b></div>
+      <div class="kv"><span>앱 버전</span><b>${APP_VERSION}</b></div>
     </div>
     <div class="card">
       <b>내보내기</b>
@@ -434,10 +436,25 @@ async function load() {
   requestPersist();
 }
 
+// 새 버전 반영: 홈 화면 앱은 껐다 켜도 '다시 열기'만 될 때가 많아서,
+// 화면으로 돌아올 때마다 새 버전을 확인하고, 새 서비스 워커가 들어오면 새로고침한다.
 async function registerSW() {
   if (!('serviceWorker' in navigator)) return;
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return; // 첫 설치 때는 새로고침할 필요 없음
+    const busy = $('#sheet').classList.contains('on'); // 등록·수정 중이면 바로 새로고침하지 않는다
+    if (!busy) { reloading = true; location.reload(); return; }
+    const bar = $('#updateBar');
+    bar.classList.remove('hidden');
+    $('#updateNow').onclick = () => { reloading = true; location.reload(); };
+  });
   try {
-    await navigator.serviceWorker.register('./sw.js');
+    const reg = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) reg.update().catch(() => {});
+    });
   } catch (e) {
     console.warn('서비스 워커 등록 실패', e);
   }
