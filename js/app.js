@@ -4,6 +4,7 @@ import { $, esc, won, fmtDate, dday, ddayChip, byExpiry, closeSheet, ALERT_DAYS 
 import { allItems, requestPersist } from './db.js';
 import { imageURL } from './image.js';
 import { openItemForm } from './form.js';
+import { openDetail, closeZoom } from './detail.js';
 import { folderOf, knownBrandNames } from './brands.js';
 
 let ITEMS = [];
@@ -146,16 +147,29 @@ const formHooks = () => ({
   },
 });
 
+function showDetail(item) {
+  openDetail(item, {
+    onEdit: (it) => openItemForm(it, {
+      ...formHooks(),
+      onSaved(saved) { formHooks().onSaved(saved); showDetail(saved); },
+    }),
+  });
+}
+
 document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-open]');
   if (!t) return;
   const item = ITEMS.find((x) => x.id === t.dataset.open);
-  if (item) openItemForm(item, formHooks());
+  if (item) showDetail(item);
 });
 $('#fab').onclick = () => openItemForm(null, formHooks());
 $('#dim').onclick = closeSheet;
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
-window.addEventListener('hashchange', () => { closeSheet(); render(); window.scrollTo(0, 0); });
+$('#zoom').onclick = closeZoom;
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if ($('#zoom').classList.contains('on')) closeZoom(); else closeSheet();
+});
+window.addEventListener('hashchange', () => { closeZoom(); closeSheet(); render(); window.scrollTo(0, 0); });
 // 날짜가 바뀌었을 수 있으니 다시 보일 때 D-day 갱신
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 

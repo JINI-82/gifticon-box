@@ -144,6 +144,35 @@ textarea.in { min-height: 60px; resize: vertical; }
 .orig.preview { max-height: 240px; object-fit: contain; background: var(--card); margin-bottom: 8px; }
 .formerr { color: var(--urgent); font-size: 13px; font-weight: 700; margin: 10px 0 0; }
 
+/* 상세 */
+.dhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.dtitle { min-width: 0; }
+.dtitle .note { margin: 0; }
+.dtitle h2 { margin: 2px 0 0; font-size: 20px; word-break: keep-all; }
+.bc { display: block; width: 100%; background: #fff; border-radius: 14px; padding: 16px 12px 10px; text-align: center; }
+.bc svg { display: block; width: 100%; height: 110px; }
+.bcnum { font-family: ui-monospace, Menlo, monospace; font-size: 20px; letter-spacing: .06em; color: #111; margin-top: 8px; word-break: break-all; -webkit-user-select: text; user-select: text; }
+.card.photo { padding: 8px; }
+.card.photo button { display: block; width: 100%; padding: 0; }
+.card.photo .orig { max-height: 50vh; object-fit: contain; }
+.center { text-align: center; }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.kv:first-child { border-top: 0; }
+.kv span { color: var(--sub); flex: none; }
+.kv .memo { font-weight: 600; text-align: right; white-space: pre-wrap; word-break: break-all; }
+
+/* 전체 화면 보기 */
+.zoom { position: fixed; inset: 0; background: #000; z-index: 70; display: none; overflow: auto; }
+.zoom.on { display: block; }
+.zoom.white { background: #fff; }
+.zoom img { width: 100%; display: block; }
+.zclose { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 12px; background: rgba(128,128,128,.35); color: #fff; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; z-index: 1; }
+.zoom.white .zclose { color: #111; }
+.bigbc { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 24px 16px; }
+.bigbc svg { width: 100%; height: 38vh; max-height: 260px; display: block; }
+.bcnum.big { font-size: 26px; text-align: center; }
+.bigbc .note { color: #666; }
+
 /* 토스트 */
 .toast { position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 999px; font-weight: 700; opacity: 0; transition: .2s; z-index: 60; pointer-events: none; max-width: 90vw; text-align: center; font-size: 14px; }
 .toast.on { opacity: 1; transform: translateX(-50%); }
