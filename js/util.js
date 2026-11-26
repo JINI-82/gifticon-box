@@ -1,6 +1,6 @@
 // 공통 유틸
 
-export const APP_VERSION = 'v11'; // sw.js의 VERSION과 같게 유지
+export const APP_VERSION = 'v12'; // sw.js의 VERSION과 같게 유지
 export const ALERT_DAYS = 3;
 export const KEEP_USED_DAYS = 30; // 사용완료 건 보관 기간
 

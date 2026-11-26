@@ -4,7 +4,7 @@
 // 같은 출처(origin) 요청만 다루고, 외부 요청은 하지 않는다.
 // 버전 올릴 때 js/util.js의 APP_VERSION도 같이 바꾼다.
 
-const VERSION = 'v11';
+const VERSION = 'v12';
 const APP_CACHE = `gifticon-${VERSION}`;
 const VENDOR_CACHE = 'gifticon-vendor-1'; // vendor 파일을 바꾸면 숫자를 올린다
 const NET_TIMEOUT = 4000;
@@ -51,7 +51,10 @@ self.addEventListener('install', (e) => {
     await app.addAll(APP_FILES.map(fresh));
     const vendor = await caches.open(VENDOR_CACHE);
     for (const f of VENDOR_FILES) {
-      if (!(await vendor.match(f))) await vendor.add(fresh(f)); // 이미 있으면 다시 안 받음
+      if (await vendor.match(f)) continue;                 // 이미 있으면 다시 안 받음
+      const old = await caches.match(f, { ignoreSearch: true }); // 옛 버전 캐시에 있으면 복사 (8MB 다시 받지 않게)
+      if (old) await vendor.put(f, old);
+      else await vendor.add(fresh(f));
     }
     await self.skipWaiting();
   })());
