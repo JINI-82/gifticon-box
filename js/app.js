@@ -1,10 +1,11 @@
 // 기프티콘함 — 앱 진입점
 // 모든 데이터는 이 기기(IndexedDB)에만 저장한다. 외부 서버로 보내지 않는다.
 import {
-  $, esc, won, fmtDate, dday, ddayChip, byExpiry, closeSheet, toast, todayStr,
+  $, esc, won, fmtDate, dday, ddayChip, byExpiry, openSheet, closeSheet, toast, todayStr,
   ALERT_DAYS, KEEP_USED_DAYS, daysUntilPurge, shouldPurge,
 } from './util.js';
-import { allItems, putItem, deleteItem, requestPersist } from './db.js';
+import { allItems, putItem, deleteItem, getMeta, requestPersist } from './db.js';
+import { buildBackup, saveBackupFile, markBackedUp, readBackup, applyBackup } from './backup.js';
 import { forgetImage } from './image.js';
 import { imageURL } from './image.js';
 import { openItemForm } from './form.js';
@@ -13,6 +14,8 @@ import { folderOf, knownBrandNames } from './brands.js';
 
 let ITEMS = [];
 let dbError = null;
+let lastBackupAt = null;
+let preparedBackup = null; // { file, count } — 만들어 둔 백업 파일 (저장 버튼 대기)
 
 const active = () => ITEMS.filter((i) => i.status !== 'used');
 const usedList = () => ITEMS.filter((i) => i.status === 'used').sort((a, b) => b.usedAt - a.usedAt);
@@ -27,6 +30,7 @@ const sumAmount = (list) => list.filter((i) => !isExpired(i)).reduce((s, i) => s
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean).map(decodeURIComponent);
   if (parts[0] === 'used') return { name: 'used' };
+  if (parts[0] === 'backup') return { name: 'backup' };
   if (parts[0] === 'f' && parts[1]) return { name: 'folder', folder: parts[1], sub: parts[2] || null };
   return { name: 'home' };
 }
@@ -95,6 +99,10 @@ function renderHome() {
   }
   const usedCount = usedList().length;
   h += `<a class="linkrow" href="#/used"><span>🧾 사용 내역</span><span class="sub">${usedCount}개 ›</span></a>`;
+  h += `<a class="linkrow" href="#/backup"><span>💾 백업·복원</span><span class="sub">${backupLabel()} ›</span></a>`;
+  if (ITEMS.length && (!lastBackupAt || Date.now() - lastBackupAt > 30 * 86400000)) {
+    h += `<p class="note">데이터는 이 폰에만 있어. 가끔 백업 파일을 '파일' 앱에 저장해둬.</p>`;
+  }
   h += `<div class="privacy">🔒 <span>사진과 바코드는 이 기기 안에서만 처리·저장돼. 어떤 서버로도 보내지 않아.</span></div>`;
   return h;
 }
@@ -149,11 +157,104 @@ function renderUsed() {
   return h;
 }
 
+const fileSize = (b) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))}KB` : `${(b / 1024 / 1024).toFixed(1)}MB`);
+const backupLabel = () => (lastBackupAt ? `마지막 ${fmtDate(todayStr(new Date(lastBackupAt)))}` : '아직 안 함');
+
+function renderBackup() {
+  const used = usedList().length;
+  return `<a class="back" href="#/">‹ 백업·복원</a>
+    <div class="card">
+      <b>왜 백업이 필요해?</b>
+      <p class="note">데이터는 이 폰 안에만 있어서, 앱을 지우거나 폰을 바꾸면 같이 사라져. 백업 파일을 아이폰 '파일' 앱(iCloud Drive 등)에 저장해둬.</p>
+      <div class="kv"><span>보유</span><b>${active().length}개</b></div>
+      <div class="kv"><span>사용 내역</span><b>${used}개</b></div>
+      <div class="kv"><span>마지막 백업</span><b>${lastBackupAt ? new Date(lastBackupAt).toLocaleString('ko-KR') : '없음'}</b></div>
+    </div>
+    <div class="card">
+      <b>내보내기</b>
+      <p class="note">사진까지 들어간 파일 하나(.json)로 만들어. 만든 다음 '저장하기'를 누르고 공유 시트에서 '파일에 저장'을 골라줘.</p>
+      ${preparedBackup
+        ? `<button class="btn primary" data-act="backup-save">📤 저장하기 (${preparedBackup.count}개, ${fileSize(preparedBackup.file.size)})</button>`
+        : `<button class="btn primary" data-act="backup-make" ${ITEMS.length ? '' : 'disabled'}>백업 파일 만들기</button>`}
+    </div>
+    <div class="card">
+      <b>가져오기</b>
+      <p class="note">백업 파일을 골라. 지금 있는 건 지우지 않고 합쳐. 같은 기프티콘이 양쪽에 있으면 더 최근에 고친 쪽을 남겨.</p>
+      <button class="btn" data-act="backup-import">📥 백업 파일 불러오기</button>
+      <input type="file" id="importFile" accept="application/json,.json" class="hidden">
+    </div>
+    <div class="privacy">🔒 <span>백업 파일은 폰 안에서 만들어지고, 어디에 저장할지는 네가 골라. 앱이 따로 업로드하지 않아.</span></div>`;
+}
+
 function render() {
   const r = route();
   $('#app').innerHTML = r.name === 'folder' ? renderFolder(r.folder, r.sub)
     : r.name === 'used' ? renderUsed()
-      : renderHome();
+      : r.name === 'backup' ? renderBackup()
+        : renderHome();
+}
+
+/* ---------- 백업 ---------- */
+async function makeBackup(btn) {
+  btn.disabled = true;
+  btn.textContent = '만드는 중…';
+  try {
+    preparedBackup = await buildBackup();
+  } catch (e) {
+    console.warn(e);
+    toast('백업 파일을 만들지 못했어');
+  }
+  render();
+}
+
+async function saveBackup() {
+  if (!preparedBackup) return;
+  const result = await saveBackupFile(preparedBackup.file);
+  if (result === 'cancelled') { toast('저장을 취소했어'); return; }
+  await markBackedUp();
+  lastBackupAt = Date.now();
+  preparedBackup = null;
+  render();
+  toast(result === 'shared' ? '백업 파일을 넘겼어' : '백업 파일을 내려받았어');
+}
+
+async function importBackup(file) {
+  let plan;
+  try {
+    plan = await readBackup(file, ITEMS);
+  } catch (e) {
+    toast(e.message || '불러오지 못했어');
+    return;
+  }
+  const n = plan.add.length + plan.update.length;
+  const lines = [
+    `새로 추가 <b>${plan.add.length}개</b>`,
+    `더 최신이라 덮어쓰기 <b>${plan.update.length}개</b>`,
+    `이미 있어서 건너뛰기 ${plan.skip}개`,
+    plan.invalid ? `읽을 수 없는 항목 ${plan.invalid}개` : '',
+  ].filter(Boolean);
+  openSheet(`<h2 class="sheet-title">백업 불러오기</h2>
+    ${plan.exportedAt ? `<p class="note">${esc(new Date(plan.exportedAt).toLocaleString('ko-KR'))}에 만든 백업</p>` : ''}
+    <div class="card">${lines.map((l) => `<div class="kv"><span>${l}</span></div>`).join('')}</div>
+    <div class="btns">
+      <button class="btn" id="imNo">취소</button>
+      <button class="btn primary" id="imOk" ${n ? '' : 'disabled'}>${n ? `${n}개 가져오기` : '가져올 게 없어'}</button>
+    </div>`);
+  $('#imNo').onclick = closeSheet;
+  $('#imOk').onclick = async () => {
+    $('#imOk').disabled = true;
+    try {
+      await applyBackup(plan);
+    } catch (e) {
+      console.warn(e);
+      toast('가져오다 오류가 났어');
+    }
+    ITEMS = await allItems();
+    closeSheet();
+    await purgeOldUsed();
+    render();
+    toast(`${n}개 가져왔어`);
+  };
 }
 
 /* ---------- 이벤트 ---------- */
@@ -218,10 +319,24 @@ async function purgeOldUsed() {
 }
 
 document.addEventListener('click', (e) => {
+  const act = e.target.closest('[data-act]');
+  if (act) {
+    const a = act.dataset.act;
+    if (a === 'backup-make') makeBackup(act);
+    else if (a === 'backup-save') saveBackup();
+    else if (a === 'backup-import') $('#importFile').click();
+    return;
+  }
   const t = e.target.closest('[data-open]');
   if (!t) return;
   const item = ITEMS.find((x) => x.id === t.dataset.open);
   if (item) showDetail(item);
+});
+document.addEventListener('change', (e) => {
+  if (e.target.id !== 'importFile') return;
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (f) importBackup(f);
 });
 $('#fab').onclick = () => openItemForm(null, formHooks());
 $('#dim').onclick = closeSheet;
@@ -230,7 +345,10 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if ($('#zoom').classList.contains('on')) closeZoom(); else closeSheet();
 });
-window.addEventListener('hashchange', () => { closeZoom(); closeSheet(); render(); window.scrollTo(0, 0); });
+window.addEventListener('hashchange', () => {
+  preparedBackup = null; // 화면을 떠나면 만들어 둔 백업은 버린다 (그 사이 데이터가 바뀔 수 있음)
+  closeZoom(); closeSheet(); render(); window.scrollTo(0, 0);
+});
 // 날짜가 바뀌었을 수 있으니 다시 보일 때 D-day 갱신
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
@@ -241,6 +359,7 @@ document.addEventListener('visibilitychange', () => {
 async function load() {
   try {
     ITEMS = await allItems();
+    lastBackupAt = (await getMeta('lastBackupAt')) || null;
   } catch (e) {
     console.warn(e);
     dbError = (e && e.message) || String(e);
