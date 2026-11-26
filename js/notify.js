@@ -1,11 +1,7 @@
 // 앱 안 알림 — 서버 없이 기기 안에서만.
-// 1) 상단 한 줄 공지: 10일 안에 만료되는 것들을 돌아가며 보여준다 (누르면 상세)
-// 2) 하루 한 번 팝업: 3일 안에 만료되는 것
-// 3) 앱 아이콘 숫자 배지: 3일 안에 만료되는 개수 (iOS 16.4+ 홈 화면 앱, 알림 권한 필요)
+// 1) 하루 한 번 팝업: 3일 안에 만료되는 것
+// 2) 앱 아이콘 숫자 배지: 3일 안에 만료되는 개수 (iOS 16.4+ 홈 화면 앱, 알림 권한 필요)
 import { $, esc, dday, byExpiry, todayStr, openSheet, closeSheet, ALERT_DAYS } from './util.js';
-
-export const TICKER_DAYS = 10;
-const ROTATE_MS = 3500;
 
 const label = (i) => [i.brand, i.name].filter(Boolean).join(' ') || '이름 없음';
 const ddayText = (n) => (n === 0 ? '오늘 만료' : `D-${n}`);
@@ -14,45 +10,7 @@ const within = (items, days) => items
   .filter((i) => { const n = dday(i.expiresAt); return n !== null && n >= 0 && n <= days; })
   .sort(byExpiry);
 
-/* ---------- 1) 상단 한 줄 공지 ---------- */
-let tickerTimer = null;
-
-export function tickerHTML(items) {
-  const list = within(items, TICKER_DAYS);
-  if (!list.length) return '';
-  const first = list[0];
-  const n = dday(first.expiresAt);
-  return `<button class="ticker ${n <= ALERT_DAYS ? 'urgent' : ''}" id="ticker" data-open="${esc(first.id)}" aria-live="polite">
-    <span class="tk-d">${ddayText(n)}</span><span class="tk-t">${esc(label(first))}</span>${list.length > 1 ? `<span class="tk-c">1/${list.length}</span>` : ''}
-  </button>`;
-}
-
-// 화면을 그린 다음 불러서 여러 개면 돌아가게 한다
-export function startTicker(items) {
-  clearInterval(tickerTimer);
-  const list = within(items, TICKER_DAYS);
-  const el = $('#ticker');
-  if (!el || list.length < 2) return;
-  let idx = 0;
-  tickerTimer = setInterval(() => {
-    const t = $('#ticker');
-    if (!t) { clearInterval(tickerTimer); return; }
-    idx = (idx + 1) % list.length;
-    const it = list[idx];
-    const n = dday(it.expiresAt);
-    t.classList.add('fade');
-    setTimeout(() => {
-      t.dataset.open = it.id;
-      t.classList.toggle('urgent', n <= ALERT_DAYS);
-      t.querySelector('.tk-d').textContent = ddayText(n);
-      t.querySelector('.tk-t').textContent = label(it);
-      t.querySelector('.tk-c').textContent = `${idx + 1}/${list.length}`;
-      t.classList.remove('fade');
-    }, 200);
-  }, ROTATE_MS);
-}
-
-/* ---------- 3) 아이콘 배지 ---------- */
+/* ---------- 아이콘 배지 ---------- */
 const badgeSupported = () => 'setAppBadge' in navigator && 'Notification' in window;
 const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
@@ -81,7 +39,7 @@ export async function askBadgePermission(items) {
   return p;
 }
 
-/* ---------- 2) 하루 한 번 팝업 ---------- */
+/* ---------- 하루 한 번 팝업 ---------- */
 const POPUP_KEY = 'gifticon.popupShown';
 const getShown = () => { try { return localStorage.getItem(POPUP_KEY); } catch { return null; } };
 const setShown = (v) => { try { localStorage.setItem(POPUP_KEY, v); } catch { /* 무시 */ } };

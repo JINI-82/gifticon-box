@@ -1,7 +1,7 @@
 // 기프티콘함 — 앱 진입점
 // 모든 데이터는 이 기기(IndexedDB)에만 저장한다. 외부 서버로 보내지 않는다.
 import {
-  $, esc, won, fmtDate, dday, ddayChip, byExpiry, openSheet, closeSheet, toast, todayStr,
+  $, esc, won, fmtDate, dday, ddayChip, byExpiry, openSheet, closeSheet, enableSheetSwipe, toast, todayStr,
   ALERT_DAYS, KEEP_USED_DAYS, daysUntilPurge, shouldPurge, APP_VERSION,
 } from './util.js';
 import { allItems, putItem, deleteItem, getMeta, requestPersist } from './db.js';
@@ -11,7 +11,7 @@ import { forgetImage } from './image.js';
 import { imageURL } from './image.js';
 import { openItemForm } from './form.js';
 import { openDetail, closeZoom } from './detail.js';
-import { tickerHTML, startTicker, updateBadge, maybeDailyPopup, askBadgePermission, badgeState } from './notify.js';
+import { updateBadge, maybeDailyPopup, askBadgePermission, badgeState } from './notify.js';
 import { folderOf, knownBrandNames } from './brands.js';
 
 let ITEMS = [];
@@ -78,8 +78,7 @@ function groupByFolder(list) {
 function renderHome() {
   const list = active();
   const urgent = list.filter(isUrgent).sort(byPriority);
-  let h = tickerHTML(ITEMS);
-  h += `<header class="top"><h1 class="title">기프티콘함</h1></header>`;
+  let h = `<header class="top"><h1 class="title">기프티콘함</h1></header>`;
   if (dbError) {
     h += `<div class="warnbox">기기 저장소를 열지 못했어: ${esc(dbError)}<br>사파리 개인정보 보호 모드면 일반 모드로 열어줘.</div>`;
   }
@@ -213,7 +212,6 @@ function render() {
     : r.name === 'used' ? renderUsed()
       : r.name === 'backup' ? renderBackup()
         : renderHome();
-  startTicker(ITEMS);
   updateBadge(ITEMS);
 }
 
@@ -428,6 +426,7 @@ function runQueue(files) {
 
 $('#fab').onclick = showAddChooser;
 $('#dim').onclick = closeSheet;
+enableSheetSwipe();
 $('#zoom').onclick = closeZoom;
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;

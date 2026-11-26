@@ -70,6 +70,7 @@ export function openDetail(item, { onEdit, onUsed, onRestore } = {}) {
 
   openSheet(`
     <div class="dhead">
+      <button class="sheet-back" id="dBack" aria-label="목록으로 돌아가기">‹</button>
       <div class="dtitle">
         <div class="note">${f.emo} ${esc(where)}</div>
         <h2>${esc(item.name || item.brand || '이름 없음')}</h2>
@@ -109,4 +110,5 @@ export function openDetail(item, { onEdit, onUsed, onRestore } = {}) {
   if (used) $('#dRestore').onclick = () => onRestore && onRestore(item);
   else $('#dUsed').onclick = () => onUsed && onUsed(item);
   $('#dClose').onclick = closeSheet;
+  $('#dBack').onclick = closeSheet;
 }
