@@ -191,6 +191,14 @@ textarea.in { min-height: 60px; resize: vertical; }
 .bcnum.big { font-size: 26px; text-align: center; }
 .bigbc .note { color: #666; }
 
+/* 상단 한 줄 공지 (10일 이내 만료) */
+.ticker { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; padding: 8px 12px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); font-size: 13px; text-align: left; transition: opacity .2s; }
+.ticker.fade { opacity: 0; }
+.ticker .tk-d { flex: none; font-weight: 800; font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--chip-warn-bg); color: var(--chip-warn-ink); }
+.ticker.urgent .tk-d { background: var(--urgent); color: #fff; }
+.ticker .tk-t { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ticker .tk-c { flex: none; color: var(--sub); font-size: 11.5px; }
+
 /* 새 버전 알림 */
 .updatebar { position: fixed; left: 50%; top: calc(10px + env(safe-area-inset-top)); transform: translateX(-50%); z-index: 80; background: var(--ink); color: var(--bg); padding: 8px 8px 8px 16px; border-radius: 999px; font-weight: 700; font-size: 14px; display: flex; gap: 10px; align-items: center; box-shadow: 0 6px 20px rgba(0,0,0,.25); white-space: nowrap; }
 .updatebar button { background: var(--accent); color: #fff; border-radius: 999px; padding: 6px 12px; font-weight: 800; }

@@ -4,7 +4,7 @@
 // 같은 출처(origin) 요청만 다루고, 외부 요청은 하지 않는다.
 // 버전 올릴 때 js/util.js의 APP_VERSION도 같이 바꾼다.
 
-const VERSION = 'v12';
+const VERSION = 'v13';
 const APP_CACHE = `gifticon-${VERSION}`;
 const VENDOR_CACHE = 'gifticon-vendor-1'; // vendor 파일을 바꾸면 숫자를 올린다
 const NET_TIMEOUT = 4000;
@@ -27,6 +27,7 @@ const APP_FILES = [
   './js/scan.js',
   './js/ocr.js',
   './js/parse.js',
+  './js/notify.js',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',

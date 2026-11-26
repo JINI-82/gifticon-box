@@ -1,6 +1,5 @@
 // 상세 화면 (하단 시트): 바코드 크게, 번호 복사, 원본 사진, 정보
-import { $, esc, won, fmtDate, dday, ddayChip, openSheet, closeSheet, toast, todayStr, daysUntilPurge } from './util.js';
-import { icsFile, openICS } from './ics.js';
+import { $, esc, won, fmtDate, ddayChip, openSheet, closeSheet, toast, todayStr, daysUntilPurge } from './util.js';
 import { imageURL } from './image.js';
 import { barcodeSVG, formatBarcode } from './barcode.js';
 import { folderOf } from './brands.js';
@@ -52,8 +51,6 @@ export function openDetail(item, { onEdit, onUsed, onRestore } = {}) {
   const where = f.sub ? `${f.label} · ${f.sub}` : f.label;
   const used = item.status === 'used';
   const left = used ? daysUntilPurge(item) : 0;
-  const n = dday(item.expiresAt);
-  const canCalendar = n !== null && n >= 0;
 
   let barcodeBlock;
   if (item.barcode) {
@@ -87,7 +84,6 @@ export function openDetail(item, { onEdit, onUsed, onRestore } = {}) {
       <div class="kv"><span>금액</span><b>${item.amount ? won(item.amount) : '-'}</b></div>
       ${item.memo ? `<div class="kv"><span>메모</span><b class="memo">${esc(item.memo)}</b></div>` : ''}
     </div>
-    ${!used && canCalendar ? '<button class="btn cal" id="dCal">📅 캘린더에 만료 알림 추가</button>' : ''}
     ${used
       ? `<div class="warnbox">${fmtDate(todayStr(new Date(item.usedAt)))}에 사용 완료 · ${left}일 뒤 자동 삭제돼</div>
          <button class="btn primary" id="dRestore">↩️ 사용 안 함으로 되돌리기</button>`
@@ -110,12 +106,6 @@ export function openDetail(item, { onEdit, onUsed, onRestore } = {}) {
   }
   if (img) $('#dPhoto').onclick = () => openZoom(`<img src="${img}" alt="원본 사진">`);
   $('#dEdit').onclick = () => onEdit && onEdit(item);
-  if (!used && canCalendar) {
-    $('#dCal').onclick = () => {
-      openICS(icsFile([item], `기프티콘-${item.expiresAt}.ics`));
-      toast('캘린더 화면에서 추가를 눌러줘');
-    };
-  }
   if (used) $('#dRestore').onclick = () => onRestore && onRestore(item);
   else $('#dUsed').onclick = () => onUsed && onUsed(item);
   $('#dClose').onclick = closeSheet;

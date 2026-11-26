@@ -11,6 +11,7 @@ import { forgetImage } from './image.js';
 import { imageURL } from './image.js';
 import { openItemForm } from './form.js';
 import { openDetail, closeZoom } from './detail.js';
+import { tickerHTML, startTicker, updateBadge, maybeDailyPopup, askBadgePermission, badgeState } from './notify.js';
 import { folderOf, knownBrandNames } from './brands.js';
 
 let ITEMS = [];
@@ -77,7 +78,8 @@ function groupByFolder(list) {
 function renderHome() {
   const list = active();
   const urgent = list.filter(isUrgent).sort(byPriority);
-  let h = `<header class="top"><h1 class="title">기프티콘함</h1></header>`;
+  let h = tickerHTML(ITEMS);
+  h += `<header class="top"><h1 class="title">기프티콘함</h1></header>`;
   if (dbError) {
     h += `<div class="warnbox">기기 저장소를 열지 못했어: ${esc(dbError)}<br>사파리 개인정보 보호 모드면 일반 모드로 열어줘.</div>`;
   }
@@ -100,9 +102,7 @@ function renderHome() {
   }
   const usedCount = usedList().length;
   h += `<a class="linkrow" href="#/used"><span>🧾 사용 내역</span><span class="sub">${usedCount}개 ›</span></a>`;
-  const calCount = calendarTargets().length;
-  if (calCount) h += `<button class="linkrow" data-act="ics-all"><span>📅 캘린더 알림 한꺼번에 추가</span><span class="sub">${calCount}개 ›</span></button>`;
-  h += `<a class="linkrow" href="#/backup"><span>💾 백업·복원</span><span class="sub">${backupLabel()} ›</span></a>`;
+  h += `<a class="linkrow" href="#/backup"><span>⚙️ 설정·백업</span><span class="sub">백업 ${backupLabel()} ›</span></a>`;
   if (ITEMS.length && (!lastBackupAt || Date.now() - lastBackupAt > 30 * 86400000)) {
     h += `<p class="note">데이터는 이 폰에만 있어. 가끔 백업 파일을 '파일' 앱에 저장해둬.</p>`;
   }
@@ -166,7 +166,23 @@ const backupLabel = () => (lastBackupAt ? `마지막 ${fmtDate(todayStr(new Date
 
 function renderBackup() {
   const used = usedList().length;
-  return `<a class="back" href="#/">‹ 백업·복원</a>
+  const bs = badgeState();
+  const badgeCard = bs === 'unsupported' ? '' : `<div class="card">
+      <b>🔴 앱 아이콘 숫자</b>
+      <p class="note">${ALERT_DAYS}일 안에 만료되는 개수를 홈 화면 아이콘에 빨간 숫자로 보여줘. 숫자는 앱을 마지막으로 연 때 기준이야.</p>
+      ${bs === 'granted' ? '<div class="kv"><span>상태</span><b>켜짐</b></div>'
+        : bs === 'denied' ? '<p class="note">알림이 꺼져 있어. 아이폰 설정 → 알림 → 기프티콘함에서 켜줘.</p>'
+          : bs === 'not-installed' ? '<p class="note">홈 화면에 추가한 앱에서만 쓸 수 있어.</p>'
+            : '<button class="btn" data-act="badge-on">켜기</button>'}
+    </div>`;
+  const calCount = calendarTargets().length;
+  return `<a class="back" href="#/">‹ 설정·백업</a>
+    ${badgeCard}
+    <div class="card">
+      <b>📅 캘린더로 보내기 (선택)</b>
+      <p class="note">앱을 안 열어도 알림을 받고 싶을 때만 써. 만료 ${ALERT_DAYS}일 전·당일 오전 9시에 아이폰 캘린더 알림이 와.</p>
+      <button class="btn" data-act="ics-all" ${calCount ? '' : 'disabled'}>캘린더에 한꺼번에 추가 (${calCount}개)</button>
+    </div>
     <div class="card">
       <b>왜 백업이 필요해?</b>
       <p class="note">데이터는 이 폰 안에만 있어서, 앱을 지우거나 폰을 바꾸면 같이 사라져. 백업 파일을 아이폰 '파일' 앱(iCloud Drive 등)에 저장해둬.</p>
@@ -197,7 +213,11 @@ function render() {
     : r.name === 'used' ? renderUsed()
       : r.name === 'backup' ? renderBackup()
         : renderHome();
+  startTicker(ITEMS);
+  updateBadge(ITEMS);
 }
+
+const dailyPopup = () => maybeDailyPopup(ITEMS, { onBadgeChanged: render });
 
 /* ---------- 캘린더 ---------- */
 // 아직 안 쓰고, 만료일이 오늘 이후인 것
@@ -356,6 +376,7 @@ document.addEventListener('click', (e) => {
     else if (a === 'backup-save') saveBackup();
     else if (a === 'backup-import') $('#importFile').click();
     else if (a === 'ics-all') showCalendarSheet();
+    else if (a === 'badge-on') askBadgePermission(ITEMS).then(render);
     return;
   }
   const t = e.target.closest('[data-open]');
@@ -420,7 +441,7 @@ window.addEventListener('hashchange', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   render();
-  purgeOldUsed();
+  purgeOldUsed().then(dailyPopup);
 });
 
 async function load() {
@@ -433,6 +454,7 @@ async function load() {
   }
   render();
   await purgeOldUsed();
+  dailyPopup();
   requestPersist();
 }
 
