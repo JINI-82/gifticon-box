@@ -3,6 +3,7 @@ import { $, esc, uid, openSheet, closeSheet, confirmSheet, toast } from './util.
 import { putItem, deleteItem } from './db.js';
 import { shrinkImage, imageURL, forgetImage } from './image.js';
 import { canonicalBrand } from './brands.js';
+import { scanBarcode } from './scan.js';
 
 const digitsOnly = (s) => String(s ?? '').replace(/[^\d]/g, '');
 
@@ -23,6 +24,7 @@ export function openItemForm(item, hooks = {}) {
     <img id="fImg" class="orig preview ${previewURL ? '' : 'hidden'}" src="${previewURL}" alt="첨부한 사진">
     <button type="button" class="btn" id="fPhotoBtn">🖼️ ${previewURL ? '사진 바꾸기' : '사진 첨부'}</button>
     <input type="file" id="fPhoto" accept="image/*" class="hidden">
+    <div class="scanmsg hidden" id="fScan" role="status"></div>
     <form id="itemForm" novalidate>
       <div class="row2">
         <div><label class="f" for="fBrand">브랜드</label>
@@ -65,12 +67,52 @@ export function openItemForm(item, hooks = {}) {
       el.classList.remove('hidden');
       $('#fPhotoBtn').textContent = '🖼️ 사진 바꾸기';
     });
+    pendingScan = runScan(file); // 축소 전 원본으로 읽어야 잘 읽힌다
   };
+
+  // 사진에서 바코드 읽어서 칸 채우기
+  let scanned = null;      // { text, format }
+  let pendingScan = null;
+  async function runScan(file) {
+    const msg = $('#fScan');
+    const show = (html, cls = '') => { msg.className = `scanmsg ${cls}`; msg.innerHTML = html; };
+    show('🔎 사진에서 바코드 찾는 중…');
+    await new Promise((r) => setTimeout(r, 30)); // 안내 문구가 먼저 그려지게
+    let result = null;
+    try {
+      result = await scanBarcode(file);
+    } catch (ex) {
+      console.warn(ex);
+      show(`바코드를 읽지 못했어: ${esc(ex.message || ex)}. 번호를 직접 입력해줘.`, 'bad');
+      return;
+    }
+    if (!$('#fBarcode')) return; // 그새 시트가 닫힘
+    if (!result) {
+      show('⚠️ 사진에서 바코드를 못 찾았어. 번호를 직접 입력해줘.', 'bad');
+      return;
+    }
+    const input = $('#fBarcode');
+    const current = input.value.replace(/\s/g, '');
+    const prevScan = scanned && scanned.text;
+    scanned = result;
+    if (!current || current === prevScan || current === result.text) {
+      input.value = result.text;
+      show(`✅ 바코드를 읽었어 (${esc(result.format)}). 번호가 맞는지 확인해줘.`, 'ok');
+    } else {
+      show(`사진의 바코드는 <b class="mono">${esc(result.text)}</b>인데 입력한 번호와 달라.
+        <button type="button" class="linkbtn" id="fUseScan">사진 번호로 바꾸기</button>`, 'bad');
+      $('#fUseScan').onclick = () => {
+        input.value = result.text;
+        show(`✅ 사진의 바코드로 바꿨어 (${esc(result.format)}).`, 'ok');
+      };
+    }
+  }
 
   $('#fCancel').onclick = closeSheet;
 
   form.onsubmit = async (e) => {
     e.preventDefault();
+    if (pendingScan) { $('#fSave').disabled = true; await pendingScan; $('#fSave').disabled = false; }
     const fd = new FormData(form);
     const brand = canonicalBrand(fd.get('brand')); // '씨유', 'gs 25' → 'CU', 'GS25'
     const name = String(fd.get('name')).trim();
@@ -83,6 +125,7 @@ export function openItemForm(item, hooks = {}) {
     $('#fSave').disabled = true;
     if (pendingImage) await pendingImage;
     const amountDigits = digitsOnly(fd.get('amount'));
+    const barcode = String(fd.get('barcode')).replace(/\s/g, '');
     const now = Date.now();
     const next = {
       ...it,
@@ -90,8 +133,9 @@ export function openItemForm(item, hooks = {}) {
       name,
       amount: amountDigits ? Number(amountDigits) : null,
       expiresAt: String(fd.get('expiresAt') || ''),
-      barcode: String(fd.get('barcode')).replace(/\s/g, ''),
-      barcodeFormat: it.barcode === String(fd.get('barcode')).replace(/\s/g, '') ? (it.barcodeFormat || '') : '',
+      barcode,
+      barcodeFormat: scanned && scanned.text === barcode ? scanned.format
+        : it.barcode === barcode ? (it.barcodeFormat || '') : '',
       memo: String(fd.get('memo')).trim(),
       image,
       status: it.status || 'active',
