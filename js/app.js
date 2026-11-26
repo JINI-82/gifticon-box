@@ -291,6 +291,7 @@ function knownBrands() {
 
 const formHooks = () => ({
   knownBrands: knownBrands(),
+  findByBarcode: (code, selfId) => ITEMS.find((x) => x.barcode === code && x.id !== selfId),
   onSaved(item) {
     const idx = ITEMS.findIndex((x) => x.id === item.id);
     if (idx >= 0) ITEMS[idx] = item; else ITEMS.push(item);
@@ -366,7 +367,43 @@ document.addEventListener('change', (e) => {
   e.target.value = '';
   if (f) importBackup(f);
 });
-$('#fab').onclick = () => openItemForm(null, formHooks());
+/* ---------- 등록: 사진 여러 장 → 한 장씩 확인 ---------- */
+function showAddChooser() {
+  openSheet(`<h2 class="sheet-title">기프티콘 등록</h2>
+    <p class="note">사진첩에서 기프티콘 이미지를 여러 장 한 번에 골라도 돼. 한 장씩 인식 결과를 확인하고 저장해.</p>
+    <button class="btn primary" id="addPhotos">🖼️ 사진으로 등록 (여러 장 가능)</button>
+    <input type="file" id="addFiles" accept="image/*" multiple class="hidden">
+    <div class="btns one"><button class="btn" id="addManual">✏️ 사진 없이 직접 입력</button></div>`);
+  $('#addPhotos').onclick = () => $('#addFiles').click();
+  $('#addFiles').onchange = (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    if (files.length) runQueue(files);
+  };
+  $('#addManual').onclick = () => openItemForm(null, formHooks());
+}
+
+function runQueue(files) {
+  const total = files.length;
+  let saved = 0;
+  const next = (i) => {
+    if (i >= total) {
+      closeSheet();
+      if (total > 1) toast(`${total}장 중 ${saved}개 등록했어`);
+      return;
+    }
+    openItemForm(null, {
+      ...formHooks(),
+      initialFile: files[i],
+      queue: { index: i + 1, total },
+      onSaved(item) { formHooks().onSaved(item); saved++; next(i + 1); },
+      onSkip() { next(i + 1); },
+    });
+  };
+  next(0);
+}
+
+$('#fab').onclick = showAddChooser;
 $('#dim').onclick = closeSheet;
 $('#zoom').onclick = closeZoom;
 document.addEventListener('keydown', (e) => {

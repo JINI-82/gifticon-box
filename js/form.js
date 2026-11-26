@@ -11,10 +11,16 @@ const digitsOnly = (s) => String(s ?? '').replace(/[^\d]/g, '');
 
 /**
  * @param {object|null} item  수정할 항목 (null이면 새로 등록)
- * @param {object} hooks      { onSaved(item), onDeleted(id), knownBrands: string[] }
+ * @param {object} hooks      {
+ *   onSaved(item), onDeleted(id), knownBrands: string[],
+ *   initialFile: File,            // 열자마자 인식할 사진 (여러 장 등록)
+ *   queue: { index, total },      // 여러 장 등록 중 몇 번째인지
+ *   onSkip(),                     // 여러 장 등록에서 이 사진 건너뛰기
+ *   findByBarcode(code, selfId),  // 같은 바코드로 이미 등록된 항목
+ * }
  */
 export function openItemForm(item, hooks = {}) {
-  const { onSaved, onDeleted, knownBrands = [] } = hooks;
+  const { onSaved, onDeleted, knownBrands = [], initialFile = null, queue = null, onSkip, findByBarcode } = hooks;
   const editing = !!item;
   const it = item ? { ...item } : { id: uid(), image: null };
   let image = it.image || null;
@@ -22,7 +28,7 @@ export function openItemForm(item, hooks = {}) {
   let pendingImage = null; // 사진 축소 진행 중이면 저장 전에 기다린다
 
   openSheet(`
-    <h2 class="sheet-title">${editing ? '정보 수정' : '기프티콘 등록'}</h2>
+    <h2 class="sheet-title">${editing ? '정보 수정' : '기프티콘 등록'}${queue ? ` <span class="qcount">${queue.index}/${queue.total}</span>` : ''}</h2>
     <img id="fImg" class="orig preview ${previewURL ? '' : 'hidden'}" src="${previewURL}" alt="첨부한 사진">
     <button type="button" class="btn" id="fPhotoBtn">🖼️ ${previewURL ? '사진 바꾸기' : '사진 첨부'}</button>
     <input type="file" id="fPhoto" accept="image/*" class="hidden">
@@ -42,11 +48,12 @@ export function openItemForm(item, hooks = {}) {
       <input class="in" id="fExp" type="date" name="expiresAt" value="${esc(it.expiresAt)}">
       <label class="f" for="fBarcode">바코드 번호</label>
       <input class="in mono" id="fBarcode" name="barcode" inputmode="numeric" value="${esc(it.barcode)}" placeholder="숫자만" autocomplete="off">
+      <div id="fDup"></div>
       <label class="f" for="fMemo">메모</label>
       <textarea class="in" id="fMemo" name="memo" placeholder="예: 엄마가 준 거">${esc(it.memo)}</textarea>
       <p class="formerr hidden" id="fErr"></p>
       <div class="btns">
-        <button type="button" class="btn ghost" id="fCancel">취소</button>
+        <button type="button" class="btn ghost" id="fCancel">${queue ? (queue.index < queue.total ? '건너뛰기' : '이건 빼기') : '취소'}</button>
         <button type="submit" class="btn primary" id="fSave">저장</button>
       </div>
       ${editing ? '<button type="button" class="btn ghost danger" id="fDelete">삭제</button>' : ''}
@@ -55,10 +62,25 @@ export function openItemForm(item, hooks = {}) {
   const form = $('#itemForm');
 
   $('#fPhotoBtn').onclick = () => $('#fPhoto').click();
-  $('#fPhoto').onchange = async (e) => {
+  $('#fPhoto').onchange = (e) => {
     const file = e.target.files[0];
     e.target.value = '';
-    if (!file) return;
+    if (file) handlePhoto(file);
+  };
+
+  // 같은 바코드가 이미 있으면 알려준다 (같은 쿠폰을 두 번 올리는 실수 방지)
+  function checkDup() {
+    const box = $('#fDup');
+    if (!box || !findByBarcode) return;
+    const code = $('#fBarcode').value.replace(/\s/g, '');
+    const dup = code && findByBarcode(code, it.id);
+    box.innerHTML = dup
+      ? `<div class="warnbox">이미 등록된 바코드야: ${esc([dup.brand, dup.name].filter(Boolean).join(' '))}${dup.status === 'used' ? ' (사용 완료)' : ''}</div>`
+      : '';
+  }
+  $('#fBarcode').addEventListener('input', checkDup);
+
+  function handlePhoto(file) {
     $('#fPhotoBtn').textContent = '🖼️ 사진 처리 중…';
     pendingImage = shrinkImage(file).then((blob) => {
       image = blob;
@@ -74,7 +96,7 @@ export function openItemForm(item, hooks = {}) {
     pendingScan = runScan(file); // 축소 전 원본으로 읽어야 잘 읽힌다
     // 바코드 다음에 글자 인식 (저장은 이걸 기다리지 않는다: 오래 걸릴 수 있어서)
     pendingScan.then(() => runOcr(file, token));
-  };
+  }
 
   // 사진에서 글자 읽어서 빈 칸 채우기
   let photoToken = 0; // 사진을 또 바꾸면 이전 인식 결과는 버린다
@@ -109,6 +131,7 @@ export function openItemForm(item, hooks = {}) {
     fill('#fExp', p.expiresAt, '유효기간');
     fill('#fAmount', p.amount ? String(p.amount) : '', '금액');
     fill('#fBarcode', p.barcode, '바코드 번호');
+    checkDup();
     if (filled.length) show(`📝 글자를 읽어서 <b>${filled.join(', ')}</b>을(를) 채웠어. 노란 칸이 맞는지 꼭 확인해줘.`, 'ok');
     else show('글자에서 새로 채울 정보를 못 찾았어. 비어 있는 칸은 직접 입력해줘.', 'bad');
   }
@@ -148,11 +171,13 @@ export function openItemForm(item, hooks = {}) {
       $('#fUseScan').onclick = () => {
         input.value = result.text;
         show(`✅ 사진의 바코드로 바꿨어 (${esc(result.format)}).`, 'ok');
+        checkDup();
       };
     }
+    checkDup();
   }
 
-  $('#fCancel').onclick = closeSheet;
+  $('#fCancel').onclick = () => { if (queue && onSkip) onSkip(); else closeSheet(); };
 
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -196,9 +221,12 @@ export function openItemForm(item, hooks = {}) {
       return;
     }
     closeSheet();
-    toast('저장했어');
+    toast(queue && queue.index < queue.total ? `저장했어. 다음 사진 (${queue.index + 1}/${queue.total})` : '저장했어');
     onSaved && onSaved(next);
   };
+
+  checkDup();
+  if (initialFile) handlePhoto(initialFile);
 
   if (editing) {
     $('#fDelete').onclick = async () => {

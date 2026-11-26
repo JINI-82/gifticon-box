@@ -87,19 +87,43 @@ export function findBrand(lines, raw) {
 
 const NOT_NAME = /유효|기간|기한|교환처|주문|번호|사용|문의|선물|보낸|받는|만료|바코드|고객|발행|일시|쿠폰|금액|잔액|까지|매장|^[\d\s\-.:~,원]+$/;
 
+// 화면 캡처에 섞이는 잡음: 상태 표시줄, 주소창, 앱 버튼·탭 이름
+const SCREEN_NOISE = new RegExp([
+  '\\b\\d{1,2}:\\d{2}\\b', '\\bLTE\\b', '\\b5G\\b', 'wi-?fi',
+  '\\.(com|co\\.kr|net|kr)\\b', 'www', 'https?',
+  '모바일\\s*쿠폰', '상품\\s*정보', '유의\\s*사항', '확대', '선물함', '복사', '공유', '저장', '다운로드',
+  '기프티쇼', 'giftishow', '카카오', 'kakao', '기프티콘', '내\\s*마음', '이용\\s*안내', '은행',
+].join('|'), 'i');
+
+const isDateLine = (l) => EXPIRY_WORDS.test(l) || /20\d{2}\s*[.\-/년]/.test(l);
+
 export function findName(lines, brand) {
   // '[스타벅스] 아메리카노 T' 형태가 가장 확실
-  const bracket = lines.find((l) => /^\[[^\]]+\]\s*\S/.test(l));
+  const bracket = lines.find((l) => /^\[[^\]]+\]\s*\S/.test(l) && !SCREEN_NOISE.test(l));
   if (bracket) return bracket.replace(/^\[[^\]]*\]\s*/, '').trim();
   const b = norm(brand);
-  const cands = lines
-    .filter((l) => /[가-힣A-Za-z]{2,}/.test(l) && !NOT_NAME.test(l) && l.length <= 40)
-    .map((l) => l.replace(/^\[[^\]]*\]\s*/, '').trim())
-    // 브랜드 이름만 있는 줄('지에스25', 'CU')은 상품명이 아니다
-    .filter((l) => l.length >= 2 && (!b || (norm(l) !== b && canonicalBrand(l) !== brand)));
-  if (!cands.length) return '';
+  const isBrandLine = (l) => !!l && !!b && (norm(l) === b || canonicalBrand(l) === brand);
+
+  // 줄마다 점수를 매겨 가장 상품명다운 줄을 고른다
+  let best = null;
+  lines.forEach((raw, i) => {
+    const l = raw.replace(/^\[[^\]]*\]\s*/, '').trim();
+    if (l.length < 2 || l.length > 40) return;
+    if (!/[가-힣A-Za-z]{2,}/.test(l) || NOT_NAME.test(l) || SCREEN_NOISE.test(l)) return;
+    if (isBrandLine(l)) return; // 브랜드 이름만 있는 줄('지에스25', 'CU')
+    const hangul = (l.match(/[가-힣]/g) || []).length;
+    const latin = (l.match(/[A-Za-z]/g) || []).length;
+    const odd = (l.match(/[^가-힣A-Za-z0-9\s()\-+&.,/%]/g) || []).length;
+    let score = hangul * 2 + Math.min(latin, 6) - odd * 3;
+    if (!hangul) score -= 8;                                    // 상품명은 대개 한글
+    if (isBrandLine(lines[i - 1])) score += 15;                 // 브랜드 바로 다음 줄
+    if (isDateLine(lines[i + 1] || '') || isDateLine(lines[i + 2] || '')) score += 8; // 유효기간 바로 위
+    if (/[가-힣]\)/.test(l)) score += 3;                        // '농심)육개장' 같은 제조사 표기
+    if (score > 0 && (!best || score > best.score)) best = { name: l, score };
+  });
+  if (!best) return '';
   // 브랜드 이름이 앞에 붙어 있으면 뗀다: '스타벅스 아메리카노' → '아메리카노'
-  let name = cands[0];
+  let name = best.name;
   if (brand && norm(name).startsWith(b) && name.length > brand.length) {
     const rest = name.replace(new RegExp(`^${brand.split('').join('\\s*')}\\s*`, 'i'), '').trim();
     if (rest.length >= 2) name = rest;
