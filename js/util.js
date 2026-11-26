@@ -1,6 +1,15 @@
 // 공통 유틸
 
 export const ALERT_DAYS = 3;
+export const KEEP_USED_DAYS = 30; // 사용완료 건 보관 기간
+
+const DAY = 86400000;
+// 사용완료 후 자동 삭제까지 남은 일수 (0이면 오늘 정리 대상)
+export function daysUntilPurge(item, now = Date.now()) {
+  return Math.max(0, KEEP_USED_DAYS - Math.floor((now - item.usedAt) / DAY));
+}
+export const shouldPurge = (item, now = Date.now()) =>
+  item.status === 'used' && item.usedAt && now - item.usedAt >= KEEP_USED_DAYS * DAY;
 
 export const $ = (s, root = document) => root.querySelector(s);
 

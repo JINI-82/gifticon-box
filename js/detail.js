@@ -1,5 +1,5 @@
 // 상세 화면 (하단 시트): 바코드 크게, 번호 복사, 원본 사진, 정보
-import { $, esc, won, fmtDate, ddayChip, openSheet, closeSheet, toast } from './util.js';
+import { $, esc, won, fmtDate, ddayChip, openSheet, closeSheet, toast, todayStr, daysUntilPurge } from './util.js';
 import { imageURL } from './image.js';
 import { barcodeSVG, formatBarcode } from './barcode.js';
 import { folderOf } from './brands.js';
@@ -42,13 +42,15 @@ export function closeZoom() {
 
 /**
  * @param {object} item
- * @param {object} hooks { onEdit(item) }
+ * @param {object} hooks { onEdit(item), onUsed(item), onRestore(item) }
  */
-export function openDetail(item, { onEdit } = {}) {
+export function openDetail(item, { onEdit, onUsed, onRestore } = {}) {
   const f = folderOf(item);
   const img = imageURL(item);
   const svg = item.barcode ? barcodeSVG(item.barcode) : '';
   const where = f.sub ? `${f.label} · ${f.sub}` : f.label;
+  const used = item.status === 'used';
+  const left = used ? daysUntilPurge(item) : 0;
 
   let barcodeBlock;
   if (item.barcode) {
@@ -72,7 +74,7 @@ export function openDetail(item, { onEdit } = {}) {
         <div class="note">${f.emo} ${esc(where)}</div>
         <h2>${esc(item.name || item.brand || '이름 없음')}</h2>
       </div>
-      ${ddayChip(item.expiresAt)}
+      ${used ? '<span class="chip">사용 완료</span>' : ddayChip(item.expiresAt)}
     </div>
     ${barcodeBlock}
     ${img ? `<div class="card photo"><button id="dPhoto" aria-label="원본 사진 크게 보기"><img class="orig" src="${img}" alt="원본 사진"></button>
@@ -82,6 +84,10 @@ export function openDetail(item, { onEdit } = {}) {
       <div class="kv"><span>금액</span><b>${item.amount ? won(item.amount) : '-'}</b></div>
       ${item.memo ? `<div class="kv"><span>메모</span><b class="memo">${esc(item.memo)}</b></div>` : ''}
     </div>
+    ${used
+      ? `<div class="warnbox">${fmtDate(todayStr(new Date(item.usedAt)))}에 사용 완료 · ${left}일 뒤 자동 삭제돼</div>
+         <button class="btn primary" id="dRestore">↩️ 사용 안 함으로 되돌리기</button>`
+      : '<button class="btn primary" id="dUsed">✅ 사용 완료</button>'}
     <div class="btns">
       <button class="btn" id="dEdit">✏️ 수정</button>
       <button class="btn ghost" id="dClose">닫기</button>
@@ -100,5 +106,7 @@ export function openDetail(item, { onEdit } = {}) {
   }
   if (img) $('#dPhoto').onclick = () => openZoom(`<img src="${img}" alt="원본 사진">`);
   $('#dEdit').onclick = () => onEdit && onEdit(item);
+  if (used) $('#dRestore').onclick = () => onRestore && onRestore(item);
+  else $('#dUsed').onclick = () => onUsed && onUsed(item);
   $('#dClose').onclick = closeSheet;
 }
